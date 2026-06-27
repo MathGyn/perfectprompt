@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ✦ PerfectPrompt
 
-## Getting Started
+Aplicação web que transforma um pedido simples e leigo no **melhor prompt
+possível**, aplicando prompt engineering com o Claude (Anthropic). Quatro tipos
+de prompt, cada um com uma "skill" (pré-formatação especializada):
 
-First, run the development server:
+| Tipo | O que faz |
+|------|-----------|
+| 🖼️ **Imagem** | Prompts para Midjourney, DALL·E, Flux, etc. — com separação estilo × conteúdo |
+| 🎬 **Vídeo** | Prompts para Sora, Runway, Kling, Veo — pensando como diretor/DP |
+| 💻 **Código** | Prompts precisos para assistentes de programação |
+| 🤖 **IA / Texto** | Prompts para ChatGPT, Claude, Gemini realizarem tarefas de texto |
+
+## A ideia
+
+O usuário leigo descreve o que quer (campo de **conceito** + alguns campos
+opcionais). A app monta um briefing e envia ao Claude com o **system prompt da
+skill** correspondente — um engenheiro de prompts especialista naquele domínio.
+O Claude devolve, com saída estruturada garantida:
+
+- o **prompt pronto** para colar (texto corrido ou JSON estruturado, à escolha);
+- as **suposições** feitas para preencher lacunas;
+- uma **dica de uso**;
+- um **negative prompt** (imagem/vídeo).
+
+### O ponto difícil: estilo × conteúdo
+
+Quando o usuário manda uma imagem só pela "vibe", a IA tende a copiar o sujeito.
+Aqui, o usuário **marca cada imagem** como _estilo_ ou _conteúdo_, e o Claude
+(visão) decompõe a imagem em dois eixos independentes — extraindo **só** os
+atributos estéticos (estilo) ou **só** o sujeito/composição (conteúdo). O
+gerador então usa exatamente o eixo certo, sem misturar.
+
+## Setup
+
+### 1. Chave da Anthropic (obrigatório)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Edite `.env.local` e preencha `ANTHROPIC_API_KEY=sk-ant-...`. A chave fica **só
+no servidor** — nunca chega ao navegador.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Rodar
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install   # já feito
+npm run dev
+```
 
-## Learn More
+Abra http://localhost:3000.
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Histórico no Google Sheets (opcional)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+A planilha continua sendo uma planilha normal; a app só "escreve" nela via um
+pequeno Web App do Apps Script. Sem isso, a app funciona — só não persiste o
+histórico.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Crie uma planilha nova no Google Sheets.
+2. **Extensões → Apps Script**, apague tudo e cole o conteúdo de
+   [`google-apps-script/Code.gs`](google-apps-script/Code.gs).
+3. (Opcional) troque a constante `TOKEN` por uma senha sua.
+4. **Implantar → Nova implantação → App da Web**
+   - Executar como: **Eu mesmo**
+   - Quem pode acessar: **Qualquer pessoa**
+5. Copie a **URL do app da web** e cole em `SHEETS_WEBAPP_URL` no `.env.local`.
+   Se usou senha, repita-a em `SHEETS_TOKEN`.
+6. Reinicie o `npm run dev`.
 
-## Deploy on Vercel
+A app cria automaticamente as abas **Prompts** e **Favoritos**. Favoritar na app
+reflete na aba; você também pode editar tudo à mão.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Arquitetura
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+  page.tsx                 UI principal (tabs, form, resultado, histórico)
+  api/
+    generate/route.ts      gera o prompt (Claude + skill + saída estruturada)
+    analyze-image/route.ts visão: separa estilo × conteúdo de uma imagem
+    history/route.ts       GET lista / POST salva / PATCH favorita (Sheets)
+    config/route.ts        diz à UI o que está configurado
+lib/
+  skills.ts                as 4 skills: system prompts + campos de formulário
+  generate.ts              monta o briefing e chama o Claude
+  analyze.ts               análise de imagem por visão
+  anthropic.ts             cliente (chave só no servidor)
+  sheets.ts                ponte com o Apps Script
+  types.ts                 tipos compartilhados
+components/                ImageUploader, PromptForm, ResultPanel, HistoryPanel
+google-apps-script/Code.gs script para colar na planilha
+```
+
+- **Modelo:** `claude-opus-4-8` com adaptive thinking.
+- **Saída estruturada:** `output_config.format` (json_schema) garante respostas
+  parseáveis.
+- **Stack:** Next.js 16 (App Router) + TypeScript + Tailwind v4.
+
+## Deploy
+
+Funciona direto na Vercel. Configure as variáveis de ambiente
+(`ANTHROPIC_API_KEY`, e opcionalmente `SHEETS_WEBAPP_URL` / `SHEETS_TOKEN`) no
+painel do projeto.
