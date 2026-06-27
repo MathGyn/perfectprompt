@@ -211,8 +211,8 @@ Você SEMPRE devolve a estrutura pedida pelo schema de saída.`;
  * ------------------------------------------------------------------ */
 
 const OUTPUT_FORMAT_OPTIONS = [
-  { value: "text", label: "Texto corrido (prompt pronto para colar)" },
   { value: "json", label: "JSON estruturado (campos separados)" },
+  { value: "text", label: "Texto corrido (prompt pronto para colar)" },
 ];
 
 /* ------------------------------------------------------------------ *
@@ -282,9 +282,9 @@ export const SKILLS: Record<PromptType, Skill> = {
         name: "outputFormat",
         label: "Formato de saída do prompt",
         type: "select",
-        defaultValue: "text",
+        defaultValue: "json",
         options: OUTPUT_FORMAT_OPTIONS,
-        help: "Texto corrido para colar direto, ou JSON com campos separados.",
+        help: "JSON estruturado (padrão) ou texto corrido para colar direto.",
       },
       {
         name: "extra",
@@ -361,7 +361,7 @@ export const SKILLS: Record<PromptType, Skill> = {
         name: "outputFormat",
         label: "Formato de saída do prompt",
         type: "select",
-        defaultValue: "text",
+        defaultValue: "json",
         options: OUTPUT_FORMAT_OPTIONS,
       },
       {
@@ -426,7 +426,7 @@ export const SKILLS: Record<PromptType, Skill> = {
         name: "outputFormat",
         label: "Formato de saída do prompt",
         type: "select",
-        defaultValue: "text",
+        defaultValue: "json",
         options: OUTPUT_FORMAT_OPTIONS,
       },
     ],
@@ -470,7 +470,7 @@ export const SKILLS: Record<PromptType, Skill> = {
         name: "outputFormat",
         label: "Formato de saída do prompt",
         type: "select",
-        defaultValue: "text",
+        defaultValue: "json",
         options: OUTPUT_FORMAT_OPTIONS,
       },
       {

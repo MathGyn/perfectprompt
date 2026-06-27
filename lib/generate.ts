@@ -44,7 +44,7 @@ function buildBriefing(req: GenerateRequest): string {
     lines.push(`${field.label}: ${typeof raw === "boolean" ? "sim" : raw}`);
   }
 
-  const outputFormat = (req.answers.outputFormat as string) || "text";
+  const outputFormat = (req.answers.outputFormat as string) || "json";
   const formatInstruction =
     outputFormat === "json"
       ? "O usuário quer o prompt como JSON ESTRUTURADO. Coloque, no campo 'prompt', UM ÚNICO objeto JSON válido com os campos relevantes do domínio (ex.: subject, style, lighting, composition, aspect_ratio, parameters...). Quando fizer sentido (imagem/vídeo), inclua os negativos DENTRO desse mesmo objeto, num campo como \"negative_prompt\" ou \"avoid\". Nada de objeto separado para negativos."
