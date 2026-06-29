@@ -5,6 +5,7 @@ import { validateModelForType } from "@/lib/models";
 import { friendlyGeminiError } from "@/lib/model-labels";
 import { PromptOutputError } from "@/lib/prompt-output";
 import { providerEnvKey, providerForType } from "@/lib/providers";
+import { getSkillSystemFromSheets, sheetsConfigured } from "@/lib/sheets";
 import { SKILLS } from "@/lib/skills";
 import type { GenerateRequest } from "@/lib/types";
 
@@ -52,7 +53,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await generatePrompt(body);
+    let systemOverride: string | undefined;
+    if (sheetsConfigured()) {
+      const fromSheet = await getSkillSystemFromSheets(body.type);
+      if (fromSheet) systemOverride = fromSheet;
+    } else if (body.systemOverride?.trim()) {
+      systemOverride = body.systemOverride.trim();
+    }
+
+    const result = await generatePrompt({ ...body, systemOverride });
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof PromptOutputError) {

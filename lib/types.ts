@@ -15,18 +15,9 @@ export interface ImageAnalysis {
 /** Respostas do formulário (dependem da skill). */
 export type Answers = Record<string, string | boolean>;
 
-/** Resultado final que o gerador devolve. */
+/** Resultado final que o gerador devolve — apenas o prompt pronto para colar. */
 export interface GeneratedPrompt {
-  /**
-   * O prompt ÚNICO e pronto para colar (texto corrido ou JSON, conforme a
-   * escolha do usuário). Quando faz sentido (imagem/vídeo), os negativos já
-   * vêm embutidos neste mesmo prompt — não há campo separado.
-   */
   prompt: string;
-  /** suposições que o engenheiro fez para preencher lacunas */
-  assumptions: string[];
-  /** dicas de uso */
-  notes: string;
 }
 
 /** Entrada da rota /api/generate. */

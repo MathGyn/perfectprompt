@@ -150,24 +150,20 @@ function handleDelete(body) {
 function handleSaveSkill(body) {
   var sheet = getSkillsSheet();
   var values = sheet.getDataRange().getValues();
-  var system = body.system ? String(body.system) : "";
+  var system = body.system != null ? String(body.system) : "";
   var updatedAt = body.updatedAt || new Date().toISOString();
   var found = false;
 
   for (var i = 1; i < values.length; i++) {
     if (String(values[i][0]) === String(body.type)) {
-      if (!system.trim()) {
-        sheet.deleteRow(i + 1);
-      } else {
-        sheet.getRange(i + 1, 2).setValue(system);
-        sheet.getRange(i + 1, 3).setValue(updatedAt);
-      }
+      sheet.getRange(i + 1, 2).setValue(system);
+      sheet.getRange(i + 1, 3).setValue(updatedAt);
       found = true;
       break;
     }
   }
 
-  if (!found && system.trim()) {
+  if (!found) {
     sheet.appendRow([body.type, system, updatedAt]);
   }
 

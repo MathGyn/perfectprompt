@@ -1,26 +1,16 @@
 import type { GeneratedPrompt } from "./types";
 
-/** Schema JSON compartilhado entre Claude (structured output) e Gemini. */
+/** Schema mínimo — só o prompt final, para economizar tokens de saída. */
 export const PROMPT_OUTPUT_SCHEMA: Record<string, unknown> = {
   type: "object",
   properties: {
     prompt: {
       type: "string",
       description:
-        "O prompt ÚNICO e final, pronto para colar no modelo-alvo. Escreva em INGLÊS, salvo pedido explícito do usuário por outro idioma. Quando fizer sentido (imagem/vídeo), os negativos (o que evitar) já vêm EMBUTIDOS aqui dentro — nunca em campo separado.",
-    },
-    assumptions: {
-      type: "array",
-      items: { type: "string" },
-      description:
-        "Suposições feitas para preencher lacunas do pedido do usuário.",
-    },
-    notes: {
-      type: "string",
-      description: "Dicas curtas de como usar o prompt no modelo-alvo.",
+        "O prompt ÚNICO e final, pronto para colar no modelo-alvo. Inglês salvo pedido explícito de outro idioma. Negativos embutidos no próprio prompt quando fizer sentido.",
     },
   },
-  required: ["prompt", "assumptions", "notes"],
+  required: ["prompt"],
   additionalProperties: false,
 };
 
@@ -85,10 +75,13 @@ export function parseGeneratedPrompt(rawText: string): GeneratedPrompt {
     throw new PromptOutputError("empty", promptOutputErrorMessage("empty"));
   }
 
-  let parsed: Partial<GeneratedPrompt>;
   try {
-    parsed = JSON.parse(trimmed) as Partial<GeneratedPrompt>;
-  } catch {
+    const parsed = JSON.parse(trimmed) as Partial<GeneratedPrompt>;
+    const prompt = parsed.prompt?.trim() ?? "";
+    assertUsablePrompt(prompt);
+    return { prompt };
+  } catch (err) {
+    if (err instanceof PromptOutputError) throw err;
     if (looksLikeIncompleteJson(trimmed)) {
       throw new PromptOutputError(
         "truncated",
@@ -96,19 +89,6 @@ export function parseGeneratedPrompt(rawText: string): GeneratedPrompt {
       );
     }
     assertUsablePrompt(trimmed);
-    return {
-      prompt: trimmed,
-      assumptions: [],
-      notes: "",
-    };
+    return { prompt: trimmed };
   }
-
-  const prompt = parsed.prompt?.trim() ?? "";
-  assertUsablePrompt(prompt);
-
-  return {
-    prompt,
-    assumptions: parsed.assumptions ?? [],
-    notes: parsed.notes ?? "",
-  };
 }

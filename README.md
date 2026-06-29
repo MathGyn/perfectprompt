@@ -16,12 +16,9 @@ de prompt, cada um com uma "skill" (pré-formatação especializada):
 O usuário leigo descreve o que quer (campo de **conceito** + alguns campos
 opcionais). A app monta um briefing e envia ao Claude com o **system prompt da
 skill** correspondente — um engenheiro de prompts especialista naquele domínio.
-O Claude devolve, com saída estruturada garantida:
-
-- o **prompt pronto** para colar (texto corrido ou JSON estruturado, à escolha);
-- as **suposições** feitas para preencher lacunas;
-- uma **dica de uso**;
-- um **negative prompt** (imagem/vídeo).
+O Claude devolve, com saída estruturada garantida, o **prompt pronto** para colar
+(JSON estruturado por padrão, ou texto corrido se preferir). Negativos (imagem/vídeo)
+vêm embutidos no próprio prompt.
 
 ### O ponto difícil: estilo × conteúdo
 

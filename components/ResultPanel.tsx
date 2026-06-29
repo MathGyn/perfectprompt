@@ -68,37 +68,6 @@ export default function ResultPanel({
   return (
     <div className="space-y-4 rise">
       <PromptBox label="Prompt" text={result.prompt} accent />
-
-      {result.assumptions.length > 0 && (
-        <div className="panel p-4">
-          <p className="eyebrow mb-2.5">suposições</p>
-          <ul className="space-y-2">
-            {result.assumptions.map((a, i) => (
-              <li key={i} className="text-sm text-ink-soft flex gap-2.5">
-                <Icon
-                  name="check"
-                  size={15}
-                  className="text-accent shrink-0 mt-0.5"
-                />
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {result.notes && (
-        <div className="panel p-4 flex gap-3">
-          <Icon name="info" size={16} className="text-accent shrink-0 mt-0.5" />
-          <div>
-            <p className="eyebrow mb-1">dica de uso</p>
-            <p className="text-sm text-ink-soft leading-relaxed">
-              {result.notes}
-            </p>
-          </div>
-        </div>
-      )}
-
       <SaveStatus state={saveState} />
     </div>
   );

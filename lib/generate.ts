@@ -48,18 +48,13 @@ function buildBriefing(req: GenerateRequest): string {
   const outputFormat = (req.answers.outputFormat as string) || "json";
   const formatInstruction =
     outputFormat === "json"
-      ? "O usuário quer o prompt como JSON ESTRUTURADO. Coloque, no campo 'prompt', UM ÚNICO objeto JSON válido com os campos relevantes do domínio (ex.: subject, style, lighting, composition, aspect_ratio, parameters...). Quando fizer sentido (imagem/vídeo), inclua os negativos DENTRO desse mesmo objeto, num campo como \"negative_prompt\" ou \"avoid\". Nada de objeto separado para negativos. Seja conciso: frases densas valem mais que listas enormes — o JSON completo precisa caber sem ser cortado."
-      : "O usuário quer o prompt como TEXTO CORRIDO ÚNICO, pronto para colar. Quando fizer sentido (imagem/vídeo), embuta os negativos NO PRÓPRIO texto, no formato do modelo-alvo (ex.: Midjourney usa '--no x, y' no fim; para outros, termine com uma linha 'Evitar: x, y'). Não devolva o negative prompt separado.";
+      ? "Formato de saída: JSON estruturado no campo prompt (objeto único com subject, style, lighting, etc.). Negativos dentro do mesmo objeto (negative_prompt/avoid). Seja conciso."
+      : "Formato de saída: TEXTO CORRIDO único, pronto para colar. Negativos embutidos (--no x, y ou linha final Evitar:).";
 
   return `${lines.join("\n")}${formatImages(req.images ?? [])}
 
-=== INSTRUÇÃO DE FORMATO ===
-${formatInstruction}
-
-=== IDIOMA DO PROMPT ===
-Escreva o campo "prompt" em INGLÊS, salvo pedido explícito do usuário por outro
-idioma no briefing acima. Se o conteúdo final deve ser em outro idioma, instrua
-isso dentro do prompt em inglês (ex.: "Output in Brazilian Portuguese").`;
+Formato: ${formatInstruction}
+Idioma do prompt: INGLÊS, salvo pedido explícito de outro idioma acima.`;
 }
 
 const GEMINI_OUTPUT_SCHEMA: ResponseSchema = {
@@ -68,19 +63,10 @@ const GEMINI_OUTPUT_SCHEMA: ResponseSchema = {
     prompt: {
       type: SchemaType.STRING,
       description:
-        "O prompt ÚNICO e final, pronto para colar. Escreva em INGLÊS salvo pedido explícito de outro idioma.",
-    },
-    assumptions: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-      description: "Suposições feitas para preencher lacunas.",
-    },
-    notes: {
-      type: SchemaType.STRING,
-      description: "Dicas curtas de como usar o prompt no modelo-alvo.",
+        "Prompt final pronto para colar. Inglês salvo pedido explícito de outro idioma.",
     },
   },
-  required: ["prompt", "assumptions", "notes"],
+  required: ["prompt"],
 };
 
 async function generateWithAnthropic(

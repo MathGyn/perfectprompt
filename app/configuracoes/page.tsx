@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { SKILL_LIST, SKILLS, type PromptType } from "@/lib/skills";
-import { loadOverrides, saveOverride, syncSkillOverrideToSheets, fetchAndApplySkillOverrides } from "@/lib/overrides";
+import {
+  fetchAndApplySkillOverrides,
+  getSkillPrompt,
+  saveSkillPrompt,
+  syncSkillToSheets,
+  type Overrides,
+} from "@/lib/overrides";
 import {
   loadModelPrefs,
   selectedModel,
@@ -12,10 +18,15 @@ import {
 import ModelSelect from "@/components/ModelSelect";
 import { Icon, Logo } from "@/components/icons";
 
+const SHEET_SYNC_MS = 700;
+
 export default function ConfiguracoesPage() {
   const [type, setType] = useState<PromptType>("image");
   const [value, setValue] = useState("");
+  const [overrides, setOverrides] = useState<Overrides>({});
   const [savedFlash, setSavedFlash] = useState(false);
+  const [savingSheet, setSavingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [modelPrefs, setModelPrefs] = useState<ModelPrefs>({});
   const [serverModels, setServerModels] = useState({
@@ -23,10 +34,11 @@ export default function ConfiguracoesPage() {
     anthropic: "claude-opus-4-8",
   });
   const [sheetsConfigured, setSheetsConfigured] = useState(false);
+  const sheetSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const skill = SKILLS[type];
   const defaultPrompt = skill.system;
-  const customized = value.trim() !== "" && value !== defaultPrompt;
+  const customized = value.trim() !== defaultPrompt.trim();
 
   useEffect(() => {
     setModelPrefs(loadModelPrefs());
@@ -42,27 +54,69 @@ export default function ConfiguracoesPage() {
         setSheetsConfigured(Boolean(data.sheets));
       })
       .catch(() => {});
-    fetchAndApplySkillOverrides().then(() => {
-      const o = loadOverrides();
-      setValue(o[type] ?? defaultPrompt);
-    });
+
+    void (async () => {
+      const result = await fetchAndApplySkillOverrides();
+      setSheetsConfigured(result.configured);
+      if (result.error) setSheetError(result.error);
+
+      let nextOverrides = result.overrides;
+
+      // Planilha vazia: publica os 4 prompts padrão na aba Skills.
+      if (result.configured && Object.keys(nextOverrides).length === 0) {
+        try {
+          for (const s of SKILL_LIST) {
+            await syncSkillToSheets(s.id, SKILLS[s.id].system);
+          }
+          const seeded = await fetchAndApplySkillOverrides();
+          nextOverrides = seeded.overrides;
+          if (seeded.error) setSheetError(seeded.error);
+        } catch (err) {
+          setSheetError(
+            err instanceof Error ? err.message : "Erro ao publicar skills."
+          );
+        }
+      }
+
+      setOverrides(nextOverrides);
+      setValue(getSkillPrompt(type, nextOverrides));
+    })();
   }, []);
 
-  // Carrega o valor (override ou padrão) ao trocar de tipo.
   useEffect(() => {
-    const o = loadOverrides();
-    setValue(o[type] ?? defaultPrompt);
-  }, [type, defaultPrompt]);
+    setValue(getSkillPrompt(type, overrides));
+  }, [type, overrides]);
+
+  const pushToSheet = async (skillType: PromptType, system: string) => {
+    setSavingSheet(true);
+    setSheetError(null);
+    try {
+      await syncSkillToSheets(skillType, system);
+      setSheetsConfigured(true);
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 1200);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao salvar na planilha.";
+      if (msg.includes("não configurada")) {
+        setSheetsConfigured(false);
+      } else {
+        setSheetError(msg);
+      }
+    } finally {
+      setSavingSheet(false);
+    }
+  };
 
   const update = (next: string) => {
     setValue(next);
-    const stored = next === defaultPrompt ? "" : next;
-    saveOverride(type, stored);
-    if (sheetsConfigured) {
-      void syncSkillOverrideToSheets(type, stored);
-    }
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 1200);
+    saveSkillPrompt(type, next);
+    setOverrides((prev) => ({ ...prev, [type]: next }));
+
+    if (sheetSyncTimer.current) clearTimeout(sheetSyncTimer.current);
+    sheetSyncTimer.current = setTimeout(() => {
+      void pushToSheet(type, next);
+    }, SHEET_SYNC_MS);
   };
 
   const restore = () => update(defaultPrompt);
@@ -79,7 +133,6 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      {/* Topo */}
       <header className="sticky top-0 z-20 bg-paper/85 backdrop-blur-md border-b border-line/70">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 h-14 flex items-center gap-3">
           <Link
@@ -108,14 +161,26 @@ export default function ConfiguracoesPage() {
               Instruções por tipo de prompt
             </h1>
             <p className="text-muted mt-2 text-[0.95rem] leading-relaxed max-w-xl">
-              Este é o comando que orienta a IA ao gerar cada tipo de prompt
-              (o “system prompt” da skill). Edite para ajustar o comportamento.
-              As mudanças valem para as próximas gerações e ficam salvas neste
-              navegador.
+              Este é o system prompt usado na geração.{" "}
+              {sheetsConfigured
+                ? "Salvo na aba Skills da planilha — a app sempre lê dali."
+                : "Configure SHEETS_WEBAPP_URL para persistir na planilha."}
             </p>
           </div>
 
-          {/* Modelos de IA */}
+          {sheetError && (
+            <div className="mb-4 panel p-4 border-l-2 border-l-danger text-sm text-danger">
+              {sheetError}
+              {sheetError.includes("ação desconhecida") && (
+                <span className="block mt-1 text-ink-soft">
+                  Atualize o Apps Script com o novo{" "}
+                  <code className="font-mono text-xs">Code.gs</code> e reimplante
+                  o Web App.
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="mb-8 panel p-5 space-y-5">
             <div>
               <p className="eyebrow mb-1.5">modelos de ia</p>
@@ -149,7 +214,6 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          {/* Seletor de tipo */}
           <div className="flex flex-wrap gap-1.5 mb-4">
             {SKILL_LIST.map((s) => {
               const active = type === s.id;
@@ -172,7 +236,6 @@ export default function ConfiguracoesPage() {
             })}
           </div>
 
-          {/* Editor */}
           <div className="panel overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-line bg-panel-2">
               <span className="flex items-center gap-2 text-sm">
@@ -187,7 +250,10 @@ export default function ConfiguracoesPage() {
                 )}
               </span>
               <div className="flex items-center gap-1">
-                {savedFlash && (
+                {savingSheet && (
+                  <span className="text-xs text-muted mr-1">salvando…</span>
+                )}
+                {savedFlash && !savingSheet && (
                   <span className="text-xs text-accent flex items-center gap-1 mr-1">
                     <Icon name="check" size={13} /> salvo
                   </span>
@@ -221,10 +287,10 @@ export default function ConfiguracoesPage() {
           </div>
 
           <p className="text-xs text-faint mt-3">
-            {value.length.toLocaleString("pt-BR")} caracteres · guardado no
-            navegador (localStorage)
-            {sheetsConfigured ? " e na aba Skills da planilha" : ""}. Restaurar
-            volta ao comando original.
+            {value.length.toLocaleString("pt-BR")} caracteres ·{" "}
+            {sheetsConfigured
+              ? "fonte: aba Skills da planilha"
+              : "cache local (planilha não configurada)"}
           </p>
         </div>
       </main>

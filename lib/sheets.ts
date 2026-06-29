@@ -100,3 +100,12 @@ export async function listSkillOverrides(): Promise<SkillOverrides> {
   });
   return data.overrides ?? {};
 }
+
+/** Lê o system prompt de um tipo na planilha (fonte de verdade no servidor). */
+export async function getSkillSystemFromSheets(
+  type: PromptType
+): Promise<string | null> {
+  const overrides = await listSkillOverrides();
+  const system = overrides[type]?.trim();
+  return system || null;
+}

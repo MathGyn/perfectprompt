@@ -16,7 +16,12 @@ import {
   providerForType,
 } from "@/lib/providers";
 import { loadModelPrefs, selectedModel, selectedModelLabel, type ModelPrefs } from "@/lib/model-prefs";
-import { loadOverrides, type Overrides, fetchAndApplySkillOverrides } from "@/lib/overrides";
+import {
+  loadOverrides,
+  type Overrides,
+  fetchAndApplySkillOverrides,
+  getSkillPrompt,
+} from "@/lib/overrides";
 import ModelSelect from "@/components/ModelSelect";
 import { Icon, Logo, type IconName } from "@/components/icons";
 import PromptForm from "@/components/PromptForm";
@@ -80,7 +85,7 @@ export default function Home() {
       .then(setConfig)
       .catch(() => {})
       .finally(() => setConfigLoading(false));
-    fetchAndApplySkillOverrides().then(setOverrides);
+    fetchAndApplySkillOverrides().then(({ overrides }) => setOverrides(overrides));
     setModelPrefs(loadModelPrefs());
   }, []);
 
@@ -134,8 +139,6 @@ export default function Home() {
     imageUploaderRef.current?.reset();
     setResult({
       prompt: entry.prompt,
-      assumptions: [],
-      notes: "",
     });
     setError(null);
     setSaveState("idle");
@@ -169,7 +172,7 @@ export default function Home() {
           type,
           answers,
           images: imageAnalyses,
-          systemOverride: overrides[type],
+          systemOverride: getSkillPrompt(type, overrides),
           modelOverride: activeModel,
         }),
       });

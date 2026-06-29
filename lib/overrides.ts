@@ -1,9 +1,9 @@
-import type { PromptType } from "./skills";
+import { SKILLS, type PromptType } from "./skills";
 
 /**
- * Overrides do system prompt ("comando da skill") por tipo, editados na página
- * de Configurações. Guardados no navegador (localStorage) e, se a planilha
- * estiver configurada, sincronizados na aba "Skills".
+ * Cache local das skills (espelho da aba "Skills" da planilha).
+ * Quando a planilha está configurada, ela é a fonte de verdade — o servidor
+ * lê direto dela na geração; o localStorage só acelera a UI.
  */
 const KEY = "pp_skill_overrides";
 
@@ -23,48 +23,87 @@ export function persistOverrides(overrides: Overrides): void {
   localStorage.setItem(KEY, JSON.stringify(overrides));
 }
 
-export function saveOverride(type: PromptType, value: string): void {
+/** Guarda o prompt completo da skill no cache local. */
+export function saveSkillPrompt(type: PromptType, system: string): void {
   if (typeof window === "undefined") return;
   const o = loadOverrides();
-  if (value.trim()) o[type] = value;
-  else delete o[type];
+  o[type] = system;
   persistOverrides(o);
 }
 
-/** Mescla overrides da planilha com o localStorage (planilha prevalece). */
-export function mergeSheetOverrides(sheetOverrides: Overrides): Overrides {
-  const merged = { ...loadOverrides(), ...sheetOverrides };
-  persistOverrides(merged);
-  return merged;
+/** Prompt efetivo: planilha/cache → padrão do código. */
+export function getSkillPrompt(
+  type: PromptType,
+  overrides?: Overrides
+): string {
+  const cached = (overrides ?? loadOverrides())[type]?.trim();
+  return cached || SKILLS[type].system;
 }
 
-/** Busca overrides na planilha e aplica no localStorage. */
-export async function fetchAndApplySkillOverrides(): Promise<Overrides> {
+/** Substitui o cache local pelo conteúdo da planilha (sem mesclar). */
+export function applySheetAsSource(sheetSkills: Overrides): Overrides {
+  persistOverrides(sheetSkills);
+  return sheetSkills;
+}
+
+/** Busca skills na planilha e aplica como cache local. */
+export async function fetchAndApplySkillOverrides(): Promise<{
+  overrides: Overrides;
+  configured: boolean;
+  error?: string;
+}> {
   try {
     const res = await fetch("/api/skills");
     const data = (await res.json()) as {
       configured?: boolean;
       overrides?: Overrides;
+      error?: string;
     };
-    if (!data.configured || !data.overrides) return loadOverrides();
-    return mergeSheetOverrides(data.overrides);
+    if (!data.configured) {
+      return { overrides: loadOverrides(), configured: false };
+    }
+    if (!res.ok) {
+      return {
+        overrides: loadOverrides(),
+        configured: true,
+        error: data.error ?? "Erro ao ler skills da planilha.",
+      };
+    }
+    return {
+      overrides: applySheetAsSource(data.overrides ?? {}),
+      configured: true,
+    };
   } catch {
-    return loadOverrides();
+    return {
+      overrides: loadOverrides(),
+      configured: false,
+      error: "Falha ao conectar com /api/skills.",
+    };
   }
 }
 
-/** Envia override para a planilha (silencioso se falhar). */
-export async function syncSkillOverrideToSheets(
+/** Envia o prompt completo para a planilha. Falha com erro explícito. */
+export async function syncSkillToSheets(
   type: PromptType,
-  value: string
+  system: string
 ): Promise<void> {
-  try {
-    await fetch("/api/skills", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, system: value }),
-    });
-  } catch {
-    /* localStorage já tem o valor */
+  const res = await fetch("/api/skills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, system }),
+  });
+  const data = (await res.json()) as { error?: string; ok?: boolean };
+  if (!res.ok) {
+    throw new Error(
+      data.error ??
+        (res.status === 503
+          ? "Planilha não configurada (SHEETS_WEBAPP_URL)."
+          : "Erro ao salvar skill na planilha.")
+    );
   }
+}
+
+/** @deprecated use saveSkillPrompt */
+export function saveOverride(type: PromptType, value: string): void {
+  saveSkillPrompt(type, value);
 }
