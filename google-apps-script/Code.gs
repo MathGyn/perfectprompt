@@ -14,6 +14,7 @@
  *
  * A planilha continua sendo uma planilha normal: você pode abrir, editar e
  * marcar favoritos à mão. A aba "Favoritos" é preenchida automaticamente.
+ * A aba "Skills" guarda os comandos personalizados das skills (Configurações).
  */
 
 // Se quiser proteger a URL, troque por uma senha. Deixe "" para não exigir.
@@ -21,7 +22,9 @@ var TOKEN = "";
 
 var MAIN_SHEET = "Prompts";
 var FAV_SHEET = "Favoritos";
+var SKILLS_SHEET = "Skills";
 var HEADERS = ["id", "createdAt", "type", "concept", "prompt", "favorite"];
+var SKILLS_HEADERS = ["type", "system", "updatedAt"];
 
 function doPost(e) {
   try {
@@ -40,6 +43,10 @@ function doPost(e) {
         return json(handleToggleFavorite(body));
       case "delete":
         return json(handleDelete(body));
+      case "saveSkill":
+        return json(handleSaveSkill(body));
+      case "listSkills":
+        return json(handleListSkills());
       default:
         return json({ ok: false, error: "ação desconhecida" });
     }
@@ -61,6 +68,18 @@ function getSheet(name) {
     sheet.appendRow(HEADERS);
   } else if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
+  }
+  return sheet;
+}
+
+function getSkillsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SKILLS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(SKILLS_SHEET);
+    sheet.appendRow(SKILLS_HEADERS);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.appendRow(SKILLS_HEADERS);
   }
   return sheet;
 }
@@ -126,6 +145,47 @@ function handleDelete(body) {
     }
   }
   return { ok: false, error: "id não encontrado" };
+}
+
+function handleSaveSkill(body) {
+  var sheet = getSkillsSheet();
+  var values = sheet.getDataRange().getValues();
+  var system = body.system ? String(body.system) : "";
+  var updatedAt = body.updatedAt || new Date().toISOString();
+  var found = false;
+
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === String(body.type)) {
+      if (!system.trim()) {
+        sheet.deleteRow(i + 1);
+      } else {
+        sheet.getRange(i + 1, 2).setValue(system);
+        sheet.getRange(i + 1, 3).setValue(updatedAt);
+      }
+      found = true;
+      break;
+    }
+  }
+
+  if (!found && system.trim()) {
+    sheet.appendRow([body.type, system, updatedAt]);
+  }
+
+  return { ok: true };
+}
+
+function handleListSkills() {
+  var sheet = getSkillsSheet();
+  var values = sheet.getDataRange().getValues();
+  var overrides = {};
+
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (!row[0] || !row[1]) continue;
+    overrides[String(row[0])] = String(row[1]);
+  }
+
+  return { ok: true, overrides: overrides };
 }
 
 // Reconstrói a aba "Favoritos" a partir das linhas marcadas.

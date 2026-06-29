@@ -3,6 +3,7 @@ import { generatePrompt } from "@/lib/generate";
 import { isProviderConfigured } from "@/lib/providers-server";
 import { validateModelForType } from "@/lib/models";
 import { friendlyGeminiError } from "@/lib/model-labels";
+import { PromptOutputError } from "@/lib/prompt-output";
 import { providerEnvKey, providerForType } from "@/lib/providers";
 import { SKILLS } from "@/lib/skills";
 import type { GenerateRequest } from "@/lib/types";
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
     const result = await generatePrompt(body);
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof PromptOutputError) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
     const raw = err instanceof Error ? err.message : "Erro ao gerar o prompt.";
     const msg =
       providerForType(body.type) === "gemini"

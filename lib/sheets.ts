@@ -77,3 +77,26 @@ export async function toggleFavorite(
 export async function deleteEntry(id: string): Promise<void> {
   await callScript({ action: "delete", id });
 }
+
+export type SkillOverrides = Partial<Record<PromptType, string>>;
+
+/** Salva ou remove override de skill na aba "Skills". */
+export async function saveSkillOverride(
+  type: PromptType,
+  system: string
+): Promise<void> {
+  await callScript({
+    action: "saveSkill",
+    type,
+    system,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/** Lista overrides de skills salvos na planilha. */
+export async function listSkillOverrides(): Promise<SkillOverrides> {
+  const data = await callScript<{ overrides: SkillOverrides }>({
+    action: "listSkills",
+  });
+  return data.overrides ?? {};
+}

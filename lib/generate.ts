@@ -7,6 +7,7 @@ import { providerForType } from "./providers";
 import { SKILLS } from "./skills";
 import {
   parseGeneratedPrompt,
+  PromptOutputError,
   PROMPT_OUTPUT_SCHEMA,
 } from "./prompt-output";
 import type { GenerateRequest, GeneratedPrompt, ImageAnalysis } from "./types";
@@ -47,7 +48,7 @@ function buildBriefing(req: GenerateRequest): string {
   const outputFormat = (req.answers.outputFormat as string) || "json";
   const formatInstruction =
     outputFormat === "json"
-      ? "O usuário quer o prompt como JSON ESTRUTURADO. Coloque, no campo 'prompt', UM ÚNICO objeto JSON válido com os campos relevantes do domínio (ex.: subject, style, lighting, composition, aspect_ratio, parameters...). Quando fizer sentido (imagem/vídeo), inclua os negativos DENTRO desse mesmo objeto, num campo como \"negative_prompt\" ou \"avoid\". Nada de objeto separado para negativos."
+      ? "O usuário quer o prompt como JSON ESTRUTURADO. Coloque, no campo 'prompt', UM ÚNICO objeto JSON válido com os campos relevantes do domínio (ex.: subject, style, lighting, composition, aspect_ratio, parameters...). Quando fizer sentido (imagem/vídeo), inclua os negativos DENTRO desse mesmo objeto, num campo como \"negative_prompt\" ou \"avoid\". Nada de objeto separado para negativos. Seja conciso: frases densas valem mais que listas enormes — o JSON completo precisa caber sem ser cortado."
       : "O usuário quer o prompt como TEXTO CORRIDO ÚNICO, pronto para colar. Quando fizer sentido (imagem/vídeo), embuta os negativos NO PRÓPRIO texto, no formato do modelo-alvo (ex.: Midjourney usa '--no x, y' no fim; para outros, termine com uma linha 'Evitar: x, y'). Não devolva o negative prompt separado.";
 
   return `${lines.join("\n")}${formatImages(req.images ?? [])}
@@ -93,7 +94,7 @@ async function generateWithAnthropic(
 
   const message = await getClient().messages.create({
     model,
-    max_tokens: 4000,
+    max_tokens: 16000,
     thinking: { type: "adaptive" },
     system,
     output_config: {
@@ -106,6 +107,13 @@ async function generateWithAnthropic(
       },
     ],
   });
+
+  if (message.stop_reason === "max_tokens") {
+    throw new PromptOutputError(
+      "truncated",
+      "A resposta foi cortada por limite de tokens. Tente de novo ou use o formato “Texto corrido”."
+    );
+  }
 
   const textBlock = message.content.find((b) => b.type === "text");
   const rawText = textBlock && "text" in textBlock ? textBlock.text : "";
@@ -132,7 +140,7 @@ async function generateWithGemini(
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: GEMINI_OUTPUT_SCHEMA,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
         },
       });
 
@@ -140,8 +148,18 @@ async function generateWithGemini(
         `Aqui está o pedido cru do usuário (leigo). Transforme no melhor prompt possível:\n\n${briefing}`
       );
 
-      return parseGeneratedPrompt(result.response.text());
+      const response = result.response;
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (finishReason === "MAX_TOKENS") {
+        throw new PromptOutputError(
+          "truncated",
+          "A resposta foi cortada por limite de tokens. Tente de novo ou use o formato “Texto corrido”."
+        );
+      }
+
+      return parseGeneratedPrompt(response.text());
     } catch (err) {
+      if (err instanceof PromptOutputError) throw err;
       lastError = err;
       const retryable =
         !isLast && (isGeminiQuotaError(err) || isGeminiModelNotFound(err));

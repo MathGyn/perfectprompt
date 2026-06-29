@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SKILL_LIST, SKILLS, type PromptType } from "@/lib/skills";
-import { loadOverrides, saveOverride } from "@/lib/overrides";
+import { loadOverrides, saveOverride, syncSkillOverrideToSheets, fetchAndApplySkillOverrides } from "@/lib/overrides";
 import {
   loadModelPrefs,
   selectedModel,
@@ -22,6 +22,7 @@ export default function ConfiguracoesPage() {
     gemini: "gemini-2.5-flash",
     anthropic: "claude-opus-4-8",
   });
+  const [sheetsConfigured, setSheetsConfigured] = useState(false);
 
   const skill = SKILLS[type];
   const defaultPrompt = skill.system;
@@ -38,8 +39,13 @@ export default function ConfiguracoesPage() {
             anthropic: data.models.anthropic,
           });
         }
+        setSheetsConfigured(Boolean(data.sheets));
       })
       .catch(() => {});
+    fetchAndApplySkillOverrides().then(() => {
+      const o = loadOverrides();
+      setValue(o[type] ?? defaultPrompt);
+    });
   }, []);
 
   // Carrega o valor (override ou padrão) ao trocar de tipo.
@@ -50,8 +56,11 @@ export default function ConfiguracoesPage() {
 
   const update = (next: string) => {
     setValue(next);
-    // Se o usuário voltar ao texto padrão, removemos o override.
-    saveOverride(type, next === defaultPrompt ? "" : next);
+    const stored = next === defaultPrompt ? "" : next;
+    saveOverride(type, stored);
+    if (sheetsConfigured) {
+      void syncSkillOverrideToSheets(type, stored);
+    }
     setSavedFlash(true);
     window.setTimeout(() => setSavedFlash(false), 1200);
   };
@@ -213,7 +222,9 @@ export default function ConfiguracoesPage() {
 
           <p className="text-xs text-faint mt-3">
             {value.length.toLocaleString("pt-BR")} caracteres · guardado no
-            navegador (localStorage). Restaurar volta ao comando original.
+            navegador (localStorage)
+            {sheetsConfigured ? " e na aba Skills da planilha" : ""}. Restaurar
+            volta ao comando original.
           </p>
         </div>
       </main>

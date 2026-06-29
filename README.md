@@ -68,8 +68,9 @@ histórico.
    Se usou senha, repita-a em `SHEETS_TOKEN`.
 6. Reinicie o `npm run dev`.
 
-A app cria automaticamente as abas **Prompts** e **Favoritos**. Favoritar na app
-reflete na aba; você também pode editar tudo à mão.
+A app cria automaticamente as abas **Prompts**, **Favoritos** e **Skills**.
+Favoritar na app reflete na aba; você também pode editar tudo à mão. Os
+comandos personalizados das skills (Configurações) vão para a aba **Skills**.
 
 ## Arquitetura
 
@@ -80,6 +81,7 @@ app/
     generate/route.ts      gera o prompt (Claude + skill + saída estruturada)
     analyze-image/route.ts visão: separa estilo × conteúdo de uma imagem
     history/route.ts       GET lista / POST salva / PATCH favorita (Sheets)
+    skills/route.ts        GET/POST overrides de skills (aba Skills)
     config/route.ts        diz à UI o que está configurado
 lib/
   skills.ts                as 4 skills: system prompts + campos de formulário
